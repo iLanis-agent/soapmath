@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoapMath - honest soap math</title>
+<style>
+  :root { --bg:#12161a; --card:#1a2129; --ink:#eef3f7; --dim:#9fb0be; --acc:#6fc3c9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding:28px 24px 8px; max-width:980px; margin:0 auto; display:flex; justify-content:space-between; align-items:baseline; }
+  h1 { margin:0; font-size:28px; }
+  h1 span { color:var(--acc); }
+  nav a { color:var(--dim); text-decoration:none; font-size:14px; }
+  main { max-width:980px; margin:0 auto; padding:16px 24px 60px; display:grid; gap:18px; }
+  .card { background:var(--card); border-radius:14px; padding:20px; }
+  .card h2 { margin:0 0 12px; font-size:13px; letter-spacing:1.5px; color:var(--dim); text-transform:uppercase; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; }
+  label { display:block; font-size:13px; color:var(--dim); margin-bottom:4px; }
+  input, select { width:100%; background:#151c23; border:1px solid #3a4a58; color:var(--ink); border-radius:8px; padding:9px 10px; font-size:15px; }
+  .hint { font-size:12.5px; color:var(--dim); margin-top:10px; }
+  button { cursor:pointer; border:0; border-radius:9px; padding:11px 16px; font-size:15px; background:var(--acc); color:#0e2b2e; font-weight:600; }
+  button.ghost { background:#2b3844; color:var(--ink); font-weight:500; }
+  button.ghost.on { background:var(--acc); color:#0e2b2e; font-weight:600; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .verdict { font-size:17px; line-height:1.65; }
+  .verdict b { color:var(--acc); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:16px; }
+  .stat { background:#151c23; border-radius:10px; padding:12px; }
+  .stat .v { font-size:19px; font-weight:700; color:var(--acc); }
+  .stat .k { font-size:12px; color:var(--dim); margin-top:2px; }
+  .warn { background:#2e2418; border:1px solid #5c4a28; border-radius:10px; padding:12px 14px; margin-top:14px; font-size:14px; color:#f0e2c8; }
+  table.bd { width:100%; border-collapse:collapse; margin-top:6px; font-size:14.5px; }
+  table.bd td { padding:7px 4px; border-bottom:1px solid #28333e; }
+  table.bd td:last-child { text-align:right; color:var(--acc); font-weight:600; }
+  table.oils { width:100%; border-collapse:collapse; }
+  table.oils td { padding:5px 4px; }
+  table.oils select, table.oils input { margin:0; }
+  .fine { font-size:12.5px; color:var(--dim); margin-top:8px; }
+  a { color:var(--acc); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Soap<span>Math</span></h1>
+  <nav><a href="index.html">about</a></nav>
+</header>
+<main>
+  <section class="card">
+    <h2>The oils</h2>
+    <table class="oils" id="oilRows"></table>
+    <div class="row">
+      <button class="ghost" id="addOil">+ add oil</button>
+    </div>
+    <div class="row" id="presets"></div>
+    <div class="hint">Weigh oils on a scale, never in cups - a cup of coconut oil and a cup of olive oil are different amounts of oil, and the lye does not care what your measuring cup thought.</div>
+  </section>
+
+  <section class="card">
+    <h2>The process</h2>
+    <div class="row" style="margin-top:0">
+      <button class="ghost on" id="kNaoh">Bar soap (NaOH)</button>
+      <button class="ghost" id="kKoh">Liquid soap (KOH)</button>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div>
+        <label for="superfat">Superfat (%)</label>
+        <input id="superfat" type="number" min="0" max="20" step="0.5" value="5">
+      </div>
+      <div>
+        <label for="waterPct">Water (% of oils)</label>
+        <input id="waterPct" type="number" min="25" max="50" step="1" value="38">
+      </div>
+      <div>
+        <label for="fragRate">Fragrance (oz per lb of oils)</label>
+        <input id="fragRate" type="number" min="0" max="1.5" step="0.1" value="0.5">
+      </div>
+      <div>
+        <label for="barOz">Bar size (oz)</label>
+        <input id="barOz" type="number" min="2" max="8" step="0.5" value="4">
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Your batch</h2>
+    <div class="verdict" id="verdict"></div>
+    <div class="stats" id="stats"></div>
+    <div class="warn" id="safety"></div>
+  </section>
+
+  <section class="card">
+    <h2>The honest part</h2>
+    <div class="verdict" style="font-size:15px">
+      Every oil saponifies at its own rate - coconut needs 35% more lye per gram than olive - so "a spoon of lye per cup of oil" is how chemical burns happen. Superfat is the safety margin: the lye discount that leaves free oil in the bar. And lye always goes INTO the water, slowly, never the other way around - the other way around is a volcano.
+    </div>
+  </section>
+</main>
+<script src="engine.js"></script>
+<script>
+(function () {
+  var kind = 'naoh';
+  var rows = [];
+  var oilRows = document.getElementById('oilRows');
+  function oilOptions(sel) {
+    Object.keys(SoapEngine.OILS).forEach(function (k) {
+      var o = document.createElement('option');
+      o.value = k; o.textContent = SoapEngine.OILS[k].name + ' (SAP ' + SoapEngine.OILS[k].sap + ')';
+      sel.appendChild(o);
+    });
+  }
+  function addRow(oil, oz) {
+    var tr = document.createElement('tr');
+    var sel = document.createElement('select');
+    oilOptions(sel);
+    sel.value = oil;
+    var inp = document.createElement('input');
+    inp.type = 'number'; inp.min = 0; inp.max = 100; inp.step = 0.5; inp.value = oz;
+    var rm = document.createElement('button');
+    rm.className = 'ghost'; rm.textContent = 'x';
+    var row = { sel: sel, inp: inp, tr: tr };
+    rm.addEventListener('click', function () {
+      rows = rows.filter(function (r) { return r !== row; });
+      oilRows.removeChild(tr);
+      render();
+    });
+    sel.addEventListener('change', render);
+    inp.addEventListener('input', render);
+    var td1 = document.createElement('td'); td1.style.width = '55%'; td1.appendChild(sel);
+    var td2 = document.createElement('td'); td2.appendChild(inp);
+    var td3 = document.createElement('td'); td3.appendChild(rm);
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+    oilRows.appendChild(tr);
+    rows.push(row);
+  }
+  document.getElementById('addOil').addEventListener('click', function () { addRow('olive', 8); render(); });
+  var PRESETS = [
+    ['Castile (pure olive)', [['olive', 32]]],
+    ['Classic all-purpose', [['olive', 16], ['coconut', 8], ['shea', 4], ['castor', 4]]],
+    ['Coconut-heavy salt bars', [['coconut', 24], ['olive', 6], ['castor', 2]]],
+    ['Gentle avocado', [['olive', 14], ['avocado', 8], ['almond', 6], ['cocoabut', 4]]]
+  ];
+  var pw = document.getElementById('presets');
+  PRESETS.forEach(function (p) {
+    var b = document.createElement('button');
+    b.className = 'ghost'; b.textContent = p[0];
+    b.addEventListener('click', function () {
+      rows = []; oilRows.innerHTML = '';
+      p[1].forEach(function (pair) { addRow(pair[0], pair[1]); });
+      render();
+    });
+    pw.appendChild(b);
+  });
+  function setKind(k) {
+    kind = k;
+    document.getElementById('kNaoh').className = 'ghost' + (k === 'naoh' ? ' on' : '');
+    document.getElementById('kKoh').className = 'ghost' + (k === 'koh' ? ' on' : '');
+    render();
+  }
+  document.getElementById('kNaoh').addEventListener('click', function () { setKind('naoh'); });
+  document.getElementById('kKoh').addEventListener('click', function () { setKind('koh'); });
+  function stat(v, k) { return '<div class="stat"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>'; }
+  function num(id) { return Number(document.getElementById(id).value) || 0; }
+  function render() {
+    var oils = rows.map(function (r) { return { oil: r.sel.value, oz: Number(r.inp.value) || 0 }; })
+                   .filter(function (o) { return o.oz > 0; });
+    if (!oils.length) { document.getElementById('verdict').textContent = 'Add an oil to start.'; return; }
+    var sf = num('superfat') / 100;
+    var lye = SoapEngine.lyeOz(oils, sf, kind);
+    var oilT = SoapEngine.totalOilOz(oils);
+    var water = SoapEngine.waterOz(oilT, num('waterPct'));
+    var frag = SoapEngine.fragranceOz(oilT, num('fragRate'));
+    var batch = SoapEngine.batchOz(oils, lye, water, frag);
+    var mold = SoapEngine.moldIn3(batch);
+    var bars = SoapEngine.barCount(batch, num('barOz') || 4);
+    document.getElementById('verdict').innerHTML =
+      'For <b>' + SoapEngine.r2(oilT) + ' oz</b> of oils, measure <b>' + SoapEngine.r2(lye) + ' oz of ' + (kind === 'naoh' ? 'NaOH' : 'KOH') + '</b> and <b>' + SoapEngine.r2(water) + ' oz</b> of distilled water. ' +
+      (frag > 0 ? 'Fragrance at trace: <b>' + SoapEngine.r2(frag) + ' oz</b>. ' : '') +
+      'The batch pours <b>' + SoapEngine.r2(batch) + ' oz</b>, needs a mold of about <b>' + SoapEngine.r2(mold) + ' cu in</b>, and cures into roughly <b>' + bars + ' bars</b>.';
+    document.getElementById('stats').innerHTML =
+      stat(SoapEngine.r2(lye) + ' oz', kind === 'naoh' ? 'NaOH (lye)' : 'KOH (lye)') +
+      stat(SoapEngine.r2(water) + ' oz', 'distilled water') +
+      stat(SoapEngine.r2(frag) + ' oz', 'fragrance') +
+      stat(bars + ' x ' + (num('barOz') || 4) + ' oz', 'cured bars');
+    document.getElementById('safety').textContent =
+      'Safety: goggles and gloves until the dishes are washed. Lye goes INTO the water, never water onto lye. Mix in a ventilated spot, and if the batch seizes or separates, the scale was right - check that you read it in ounces, not fluid ounces.';
+  }
+  ['superfat', 'waterPct', 'fragRate', 'barOz'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  addRow('olive', 16); addRow('coconut', 8); addRow('shea', 4); addRow('castor', 4);
+  render();
+})();
+</script>
+</body>
+</html>
